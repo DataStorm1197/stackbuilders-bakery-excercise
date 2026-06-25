@@ -6,6 +6,12 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  CUSTOMER
+  STORE_MANAGER
+  KITCHEN_MANAGER
+}
+
 enum Category {
   COOKIE
   PASTRY
@@ -92,4 +98,12 @@ model KitchenJob {
   bakeStartedAt DateTime?
   bakeDoneAt    DateTime?
   orderItem   OrderItem        @relation(fields: [orderItemId], references: [id])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      Role
+  createdAt DateTime @default(now())
 }
