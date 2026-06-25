@@ -60,6 +60,7 @@ model MenuItem {
 
 model Order {
   id               String        @id @default(cuid())
+  customerId       String?
   priorityLevel    PriorityLevel
   status           OrderStatus   @default(PENDING)
   totalPrice       Decimal       @db.Decimal(10, 2)
