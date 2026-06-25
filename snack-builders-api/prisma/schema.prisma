@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Category {
+  COOKIE
+  PASTRY
+  BREAD
+}
+
+enum PriorityLevel {
+  TIER1
+  TIER2
+  TIER3
+}
+
+enum OrderStatus {
+  PENDING
+  BAKING
+  READY
+  PAID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+}
+
+enum KitchenJobStatus {
+  QUEUED
+  BAKING
+  DONE
+}
+
+model MenuItem {
+  id           String      @id @default(cuid())
+  name         String
+  category     Category
+  price        Decimal     @db.Decimal(10, 2)
+  bake_minutes Int
+  available    Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  orderItems   OrderItem[]
+}
+
+model Order {
+  id               String        @id @default(cuid())
+  priorityLevel    PriorityLevel
+  status           OrderStatus   @default(PENDING)
+  totalPrice       Decimal       @db.Decimal(10, 2)
+  estimatedReadyAt DateTime?
+  createdAt        DateTime      @default(now())
+  items            OrderItem[]
+  payment          PaymentRecord?
+}
+
+model OrderItem {
+  id         String      @id @default(cuid())
+  orderId    String
+  menuItemId String
+  quantity   Int
+  order      Order       @relation(fields: [orderId], references: [id])
+  menuItem   MenuItem    @relation(fields: [menuItemId], references: [id])
+  kitchenJob KitchenJob?
+}
+
+model PaymentRecord {
+  id      String        @id @default(cuid())
+  orderId String        @unique
+  method  PaymentMethod
+  amount  Decimal       @db.Decimal(10, 2)
+  status  PaymentStatus @default(PENDING)
+  paidAt  DateTime?
+  order   Order         @relation(fields: [orderId], references: [id])
+}
+
+model KitchenJob {
+  id          String           @id @default(cuid())
+  orderItemId String           @unique
+  status      KitchenJobStatus @default(QUEUED)
+  ovenNumber  Int
+  slotNumber  Int
+  bakeStartedAt DateTime?
+  bakeDoneAt    DateTime?
+  orderItem   OrderItem        @relation(fields: [orderItemId], references: [id])
+}
