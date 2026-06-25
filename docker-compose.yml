@@ -8,6 +8,7 @@ services:
     environment:
       DATABASE_URL: postgresql://snack:snack@postgres:5432/snack_builders?schema=public
       PORT: "3000"
+      NODE_ENV: production
     depends_on:
       postgres:
         condition: service_healthy
@@ -20,7 +21,7 @@ services:
       POSTGRES_PASSWORD: snack
       POSTGRES_DB: snack_builders
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
