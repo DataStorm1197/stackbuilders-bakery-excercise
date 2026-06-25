@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { KitchenModule } from './kitchen/kitchen.module';
 import { MenuModule } from './menu/menu.module';
+import { MetricsModule } from './metrics/metrics.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -32,6 +33,7 @@ import { TimeProviderModule } from './common/providers/time.provider.module';
     }),
     PrismaModule,
     TimeProviderModule,
+    MetricsModule,
     MenuModule,
     OrdersModule,
     PaymentsModule,

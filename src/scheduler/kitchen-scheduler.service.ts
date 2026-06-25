@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
 import { KitchenJobStatus, PriorityLevel } from '@prisma/client';
 import { Mutex } from 'async-mutex';
+import { Gauge } from 'prom-client';
 import { TimeProvider } from '../common/time/time-provider';
 import { PrismaService } from '../prisma/prisma.service';
 import { KitchenJob } from './entities/kitchen-job.entity';
@@ -22,6 +24,8 @@ export class KitchenSchedulerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly timeProvider: TimeProvider,
+    @Optional() @InjectMetric('kitchen_queue_length') private readonly queueGauge?: Gauge<string>,
+    @Optional() @InjectMetric('oven_utilization') private readonly ovenUtilGauge?: Gauge<string>,
   ) {
     this.mutex = new Mutex();
     this.ovens = new Map([
@@ -31,6 +35,13 @@ export class KitchenSchedulerService {
     this.queue = [];
   }
 
+  /**
+   * Adds a job to the scheduler. If a free oven slot exists the job starts
+   * baking immediately and the returned ETA reflects its own bake_minutes.
+   * When all 6 slots are occupied the job is sorted into the priority queue
+   * and receives a serial-chain ETA. TIER1 jobs also return `affectedJobs`
+   * with the recalculated ETAs of every queued job displaced by the insertion.
+   */
   async enqueue(job: KitchenJob): Promise<EtaResult> {
     return this.mutex.runExclusive(async () => {
       job.enqueuedAt = new Date(this.timeProvider.now());
@@ -40,6 +51,7 @@ export class KitchenSchedulerService {
       if (freeSlot) {
         const estimatedReadyAt = this.assignJobToSlot(job, freeSlot.ovenNumber, freeSlot.slotNumber);
         await this.persistBakingJob(job);
+        this.updateMetrics();
         return { jobId: job.id, estimatedReadyAt };
       }
 
@@ -51,16 +63,27 @@ export class KitchenSchedulerService {
       if (job.priorityLevel === PriorityLevel.TIER1) {
         result.affectedJobs = allEtas.filter(e => e.jobId !== job.id);
       }
+      this.updateMetrics();
       return result;
     });
   }
 
+  /**
+   * Drains the queue into any currently free oven slots. Safe to call at any
+   * time; it is a no-op when either the queue is empty or all slots are full.
+   */
   async assignPendingJobs(): Promise<void> {
     return this.mutex.runExclusive(async () => {
       await this.drainQueue();
+      this.updateMetrics();
     });
   }
 
+  /**
+   * Marks the job occupying `ovenNumber/slotNumber` as DONE, persists the
+   * completion timestamp, frees the slot, and immediately pulls the next
+   * queued job into that slot (if any).
+   */
   async completeBaking(ovenNumber: number, slotNumber: number): Promise<void> {
     return this.mutex.runExclusive(async () => {
       const job = this.ovens.get(ovenNumber)?.get(slotNumber);
@@ -76,9 +99,11 @@ export class KitchenSchedulerService {
       });
 
       await this.drainQueue();
+      this.updateMetrics();
     });
   }
 
+  /** Returns a snapshot of the current oven grid and waiting queue. */
   getKitchenState(): KitchenState {
     return { ovens: this.ovens, queue: [...this.queue] };
   }
@@ -168,5 +193,17 @@ export class KitchenSchedulerService {
         bakeStartedAt: job.bakeStartedAt,
       },
     });
+  }
+
+  private updateMetrics(): void {
+    if (!this.queueGauge && !this.ovenUtilGauge) return;
+    let usedSlots = 0;
+    for (const [, slots] of this.ovens) {
+      for (const [, job] of slots) {
+        if (job !== null) usedSlots++;
+      }
+    }
+    this.queueGauge?.set(this.queue.length);
+    this.ovenUtilGauge?.set(usedSlots / 6);
   }
 }
