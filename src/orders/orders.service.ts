@@ -1,6 +1,8 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
 import { KitchenJobStatus, OrderStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import { Counter } from 'prom-client';
 import { Role } from '../auth/enums/role.enum';
 import { KitchenJob } from '../scheduler/entities/kitchen-job.entity';
 import { KitchenSchedulerService } from '../scheduler/kitchen-scheduler.service';
@@ -12,6 +14,7 @@ export class OrdersService {
   constructor(
     private readonly ordersRepository: OrdersRepository,
     private readonly kitchenScheduler: KitchenSchedulerService,
+    @Optional() @InjectMetric('orders_placed_total') private readonly ordersCounter?: Counter<string>,
   ) {}
 
   async createOrder(customerId: string, dto: CreateOrderDto) {
@@ -59,6 +62,8 @@ export class OrdersService {
         maxEta = etaResult.estimatedReadyAt;
       }
     }
+
+    this.ordersCounter?.inc({ priority_level: dto.priorityLevel });
 
     if (maxEta) {
       await this.ordersRepository.updateEstimatedReadyAt(order.id, maxEta);
