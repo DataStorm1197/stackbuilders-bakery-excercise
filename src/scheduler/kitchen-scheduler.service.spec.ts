@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { KitchenJobStatus, PriorityLevel } from '@prisma/client';
 import { MockTimeProvider } from '../common/time/mock-time.provider';
 import { TimeProvider } from '../common/time/time-provider';
-import { PrismaService } from '../prisma/prisma.service';
+import { KitchenJobRepository } from './kitchen-job.repository';
 import { KitchenJob } from './entities/kitchen-job.entity';
 import { KitchenSchedulerService } from './kitchen-scheduler.service';
 
@@ -28,20 +28,18 @@ function makeJob(
   return job;
 }
 
-function makePrismaMock() {
+function makeRepoMock() {
   return {
-    kitchenJob: {
-      create: jest.fn().mockResolvedValue({}),
-      update: jest.fn().mockResolvedValue({}),
-    },
+    createBaking: jest.fn().mockResolvedValue(undefined),
+    markDone: jest.fn().mockResolvedValue(undefined),
   };
 }
 
-async function buildModule(prismaMock: ReturnType<typeof makePrismaMock>, timeProvider: MockTimeProvider) {
+async function buildModule(repoMock: ReturnType<typeof makeRepoMock>, timeProvider: MockTimeProvider) {
   const module: TestingModule = await Test.createTestingModule({
     providers: [
       KitchenSchedulerService,
-      { provide: PrismaService, useValue: prismaMock },
+      { provide: KitchenJobRepository, useValue: repoMock },
       { provide: TimeProvider, useValue: timeProvider },
     ],
   }).compile();
@@ -51,19 +49,19 @@ async function buildModule(prismaMock: ReturnType<typeof makePrismaMock>, timePr
 
 describe('KitchenSchedulerService', () => {
   let scheduler: KitchenSchedulerService;
-  let prismaMock: ReturnType<typeof makePrismaMock>;
+  let repoMock: ReturnType<typeof makeRepoMock>;
   let timeProvider: MockTimeProvider;
 
   beforeEach(async () => {
     timeProvider = new MockTimeProvider();
     timeProvider.setNow(BASE_TIME);
-    prismaMock = makePrismaMock();
-    scheduler = await buildModule(prismaMock, timeProvider);
+    repoMock = makeRepoMock();
+    scheduler = await buildModule(repoMock, timeProvider);
   });
 
   function countOccupiedSlots(): number {
     let count = 0;
-    for (const [, slots] of scheduler.ovens) {
+    for (const [, slots] of scheduler.getKitchenState().ovens) {
       for (const [, job] of slots) {
         if (job !== null) count++;
       }
@@ -72,7 +70,7 @@ describe('KitchenSchedulerService', () => {
   }
 
   function findJobInOvens(jobId: string): KitchenJob | null {
-    for (const [, slots] of scheduler.ovens) {
+    for (const [, slots] of scheduler.getKitchenState().ovens) {
       for (const [, job] of slots) {
         if (job?.id === jobId) return job;
       }
@@ -104,7 +102,7 @@ describe('KitchenSchedulerService', () => {
 
     expect(job.status).toBe(KitchenJobStatus.BAKING);
     expect(result.estimatedReadyAt.getTime()).toBe(BASE_TIME + 45 * 60_000);
-    expect(prismaMock.kitchenJob.create).toHaveBeenCalledTimes(1);
+    expect(repoMock.createBaking).toHaveBeenCalledTimes(1);
   });
 
   // ── VIP / TIER1 priority ─────────────────────────────────────────────────────
@@ -170,16 +168,12 @@ describe('KitchenSchedulerService', () => {
 
     expect(queued.status).toBe(KitchenJobStatus.BAKING);
     expect(findJobInOvens('next')).not.toBeNull();
-    expect(prismaMock.kitchenJob.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ status: KitchenJobStatus.DONE }),
-      }),
-    );
+    expect(repoMock.markDone).toHaveBeenCalledWith('order-item-slot-0', expect.any(Date));
   });
 
   it('completeBaking on empty slot is a no-op', async () => {
     await expect(scheduler.completeBaking(1, 1)).resolves.not.toThrow();
-    expect(prismaMock.kitchenJob.update).not.toHaveBeenCalled();
+    expect(repoMock.markDone).not.toHaveBeenCalled();
   });
 
   // ── Concurrency ──────────────────────────────────────────────────────────────

@@ -66,19 +66,8 @@ export class KitchenService {
     const newNow = mock.now() + minutes * 60_000;
     mock.setNow(newNow);
 
-    const doneSlots: Array<{ ovenNumber: number; slotNumber: number }> = [];
-    for (const [ovenNumber, slots] of this.scheduler.ovens) {
-      for (const [slotNumber, job] of slots) {
-        if (job && job.estimatedDoneAt && job.estimatedDoneAt.getTime() <= newNow) {
-          doneSlots.push({ ovenNumber, slotNumber });
-        }
-      }
-    }
+    const completedJobs = await this.scheduler.completeJobsDueBy(newNow);
 
-    for (const { ovenNumber, slotNumber } of doneSlots) {
-      await this.scheduler.completeBaking(ovenNumber, slotNumber);
-    }
-
-    return { advancedMs: minutes * 60_000, completedJobs: doneSlots.length };
+    return { advancedMs: minutes * 60_000, completedJobs };
   }
 }

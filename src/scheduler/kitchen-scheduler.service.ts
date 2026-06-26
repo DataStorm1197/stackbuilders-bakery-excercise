@@ -4,7 +4,7 @@ import { KitchenJobStatus, PriorityLevel } from '@prisma/client';
 import { Mutex } from 'async-mutex';
 import { Gauge } from 'prom-client';
 import { TimeProvider } from '../common/time/time-provider';
-import { PrismaService } from '../prisma/prisma.service';
+import { KitchenJobRepository } from './kitchen-job.repository';
 import { KitchenJob } from './entities/kitchen-job.entity';
 import { EtaResult } from './interfaces/eta-result.interface';
 import { KitchenState } from './interfaces/kitchen-state.interface';
@@ -17,12 +17,12 @@ const TIER_ORDER: Record<PriorityLevel, number> = {
 
 @Injectable()
 export class KitchenSchedulerService {
-  readonly ovens: Map<number, Map<number, KitchenJob | null>>;
+  private readonly ovens: Map<number, Map<number, KitchenJob | null>>;
   private queue: KitchenJob[];
   private readonly mutex: Mutex;
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly kitchenJobRepository: KitchenJobRepository,
     private readonly timeProvider: TimeProvider,
     @Optional() @InjectMetric('kitchen_queue_length') private readonly queueGauge?: Gauge<string>,
     @Optional() @InjectMetric('oven_utilization') private readonly ovenUtilGauge?: Gauge<string>,
@@ -86,19 +86,42 @@ export class KitchenSchedulerService {
    */
   async completeBaking(ovenNumber: number, slotNumber: number): Promise<void> {
     return this.mutex.runExclusive(async () => {
-      const job = this.ovens.get(ovenNumber)?.get(slotNumber);
-      if (!job) return;
+      await this.completeBakingInternal(ovenNumber, slotNumber);
+      this.updateMetrics();
+    });
+  }
 
-      job.status = KitchenJobStatus.DONE;
-      job.bakeDoneAt = new Date(this.timeProvider.now());
-      this.ovens.get(ovenNumber)!.set(slotNumber, null);
+  /**
+   * Completes every slot whose job is due (estimatedDoneAt <= nowMs) under a
+   * single lock, draining the queue after each. Replaces callers reaching into
+   * the oven grid directly. Returns the number of jobs completed.
+   */
+  async completeJobsDueBy(nowMs: number): Promise<number> {
+    return this.mutex.runExclusive(async () => {
+      const due: Array<{ ovenNumber: number; slotNumber: number }> = [];
+      for (const [ovenNumber, slots] of this.ovens) {
+        for (const [slotNumber, job] of slots) {
+          if (job?.estimatedDoneAt && job.estimatedDoneAt.getTime() <= nowMs) {
+            due.push({ ovenNumber, slotNumber });
+          }
+        }
+      }
 
-      await this.prisma.kitchenJob.update({
-        where: { orderItemId: job.orderItemId },
-        data: { status: KitchenJobStatus.DONE, bakeDoneAt: job.bakeDoneAt },
-      });
+      for (const { ovenNumber, slotNumber } of due) {
+        await this.completeBakingInternal(ovenNumber, slotNumber);
+      }
+      this.updateMetrics();
+      return due.length;
+    });
+  }
 
-      await this.drainQueue();
+  /** Clears all oven slots and the queue. Intended for test setup/teardown. */
+  async reset(): Promise<void> {
+    return this.mutex.runExclusive(async () => {
+      for (const [, slots] of this.ovens) {
+        for (const [slotNumber] of slots) slots.set(slotNumber, null);
+      }
+      this.queue = [];
       this.updateMetrics();
     });
   }
@@ -109,6 +132,18 @@ export class KitchenSchedulerService {
   }
 
   // ── private helpers (no mutex – always called within a locked context) ──────
+
+  private async completeBakingInternal(ovenNumber: number, slotNumber: number): Promise<void> {
+    const job = this.ovens.get(ovenNumber)?.get(slotNumber);
+    if (!job) return;
+
+    job.status = KitchenJobStatus.DONE;
+    job.bakeDoneAt = new Date(this.timeProvider.now());
+    this.ovens.get(ovenNumber)!.set(slotNumber, null);
+
+    await this.kitchenJobRepository.markDone(job.orderItemId, job.bakeDoneAt);
+    await this.drainQueue();
+  }
 
   private findFreeSlot(): { ovenNumber: number; slotNumber: number } | null {
     for (const [ovenNumber, slots] of this.ovens) {
@@ -183,16 +218,7 @@ export class KitchenSchedulerService {
   }
 
   private async persistBakingJob(job: KitchenJob): Promise<void> {
-    await this.prisma.kitchenJob.create({
-      data: {
-        id: job.id,
-        orderItemId: job.orderItemId,
-        status: KitchenJobStatus.BAKING,
-        ovenNumber: job.ovenNumber!,
-        slotNumber: job.slotNumber!,
-        bakeStartedAt: job.bakeStartedAt,
-      },
-    });
+    await this.kitchenJobRepository.createBaking(job);
   }
 
   private updateMetrics(): void {
