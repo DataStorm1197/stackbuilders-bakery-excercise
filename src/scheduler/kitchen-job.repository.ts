@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { KitchenJobStatus, OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { KitchenJob } from './entities/kitchen-job.entity';
+import { KitchenJob } from './domain/kitchen-job';
 
 /**
  * Persistence gateway for kitchen jobs. Only BAKING and DONE transitions are

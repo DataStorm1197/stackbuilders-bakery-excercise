@@ -5,7 +5,7 @@ import { Mutex } from 'async-mutex';
 import { Gauge } from 'prom-client';
 import { TimeProvider } from '../common/time/time-provider';
 import { KitchenJobRepository } from './kitchen-job.repository';
-import { KitchenJob } from './entities/kitchen-job.entity';
+import { KitchenJob } from './domain/kitchen-job';
 import { EtaResult } from './interfaces/eta-result.interface';
 import { KitchenState } from './interfaces/kitchen-state.interface';
 

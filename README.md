@@ -4,7 +4,7 @@ REST API for a bakery's order management system — handles menu, orders, kitche
 
 ## Architecture
 
-![Architecture Diagram](src/diagrams/architecture.png)
+![Architecture Diagram](docs/diagrams/architecture.png)
 
 The application is a **NestJS monolith** backed by PostgreSQL (via Prisma 7). All routes are JWT-protected globally through `APP_GUARD`; public endpoints are opt-in with `@Public()`.
 
@@ -47,7 +47,7 @@ Every mutating method (`enqueue`, `completeBaking`, `assignPendingJobs`) runs in
 
 ## Database — Entity Relationship Diagram
 
-![ER Diagram](src/diagrams/er-diagram.png)
+![ER Diagram](docs/diagrams/er-diagram.png)
 
 ### Models
 
