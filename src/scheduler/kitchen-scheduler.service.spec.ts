@@ -3,7 +3,7 @@ import { KitchenJobStatus, PriorityLevel } from '@prisma/client';
 import { MockTimeProvider } from '../common/time/mock-time.provider';
 import { TimeProvider } from '../common/time/time-provider';
 import { KitchenJobRepository } from './kitchen-job.repository';
-import { KitchenJob } from './entities/kitchen-job.entity';
+import { KitchenJob } from './domain/kitchen-job';
 import { KitchenSchedulerService } from './kitchen-scheduler.service';
 
 const BASE_TIME = new Date('2024-01-01T10:00:00Z').getTime();

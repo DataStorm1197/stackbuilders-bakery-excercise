@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
-import { RealTimeProvider } from '../time/real-time.provider';
-import { TimeProvider } from '../time/time-provider';
+import { RealTimeProvider } from './real-time.provider';
+import { TimeProvider } from './time-provider';
 
 @Global()
 @Module({

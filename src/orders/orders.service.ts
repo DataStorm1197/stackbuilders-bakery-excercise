@@ -4,7 +4,7 @@ import { KitchenJobStatus, OrderStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { Counter } from 'prom-client';
 import { Role } from '../auth/enums/role.enum';
-import { KitchenJob } from '../scheduler/entities/kitchen-job.entity';
+import { KitchenJob } from '../scheduler/domain/kitchen-job';
 import { KitchenSchedulerService } from '../scheduler/kitchen-scheduler.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrdersRepository } from './orders.repository';

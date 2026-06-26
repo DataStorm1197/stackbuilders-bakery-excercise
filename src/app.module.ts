@@ -13,7 +13,7 @@ import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
-import { TimeProviderModule } from './common/providers/time.provider.module';
+import { TimeProviderModule } from './common/time';
 
 @Module({
   imports: [
