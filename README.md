@@ -70,7 +70,15 @@ Every mutating method (`enqueue`, `completeBaking`, `assignPendingJobs`) runs in
 
 ## Database — Entity Relationship Diagram
 
-![ER Diagram](docs/diagrams/er-diagram.png)
+```mermaid
+erDiagram
+    MenuItem ||--o{ OrderItem : "ordered as"
+    Order ||--o{ OrderItem : "contains"
+    Order ||--o| PaymentRecord : "paid by"
+    OrderItem ||--o| KitchenJob : "baked as"
+```
+
+> 🗃️ Full attributed ER diagram (field types, keys, and the standalone `User` entity): **[docs/database.md](docs/database.md)**
 
 ### Models
 
