@@ -49,7 +49,7 @@ describe('Kitchen advance-time (integration)', () => {
 
   afterEach(async () => {
     await cleanDb();
-    resetScheduler();
+    await scheduler.reset();
     mockTime.setNow(BASE_TIME);
   });
 
@@ -60,15 +60,6 @@ describe('Kitchen advance-time (integration)', () => {
     await prisma.menuItem.deleteMany();
   }
 
-  function resetScheduler() {
-    for (const [, slots] of scheduler.ovens) {
-      for (const [slot] of slots) {
-        slots.set(slot, null);
-      }
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (scheduler as any).queue = [];
-  }
 
   it('returns 400 when minutes < 1', async () => {
     await request(app.getHttpServer())

@@ -46,7 +46,7 @@ describe('Orders (integration)', () => {
 
   afterEach(async () => {
     await cleanDb();
-    resetScheduler();
+    await scheduler.reset();
   });
 
   async function cleanDb() {
@@ -56,15 +56,6 @@ describe('Orders (integration)', () => {
     await prisma.menuItem.deleteMany();
   }
 
-  function resetScheduler() {
-    for (const [, slots] of scheduler.ovens) {
-      for (const [slot] of slots) {
-        slots.set(slot, null);
-      }
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (scheduler as any).queue = [];
-  }
 
   // ──────────────────────────────────────────────
   // POST /orders
@@ -302,7 +293,7 @@ describe('Orders (integration)', () => {
 
       expect(res.body).toMatchObject({
         orderId,
-        status: 'PENDING',
+        status: 'BAKING',
         priorityLevel: 'TIER3',
         totalPrice: expect.any(Number),
         estimatedReadyAt: expect.any(String),
