@@ -4,9 +4,32 @@ REST API for a bakery's order management system — handles menu, orders, kitche
 
 ## Architecture
 
-![Architecture Diagram](docs/diagrams/architecture.png)
+The application is a **NestJS monolith** backed by PostgreSQL (via Prisma 7). All routes are JWT-protected globally through `APP_GUARD`; public endpoints are opt-in with `@Public()`. Each feature follows a **controller → service → repository → Prisma** layering.
 
-The application is a **NestJS monolith** backed by PostgreSQL (via Prisma 7). All routes are JWT-protected globally through `APP_GUARD`; public endpoints are opt-in with `@Public()`.
+```mermaid
+flowchart TB
+    Client([Client]) -->|HTTP + Bearer JWT| JwtG[["JwtAuthGuard (APP_GUARD)"]]
+
+    subgraph Features["Feature modules"]
+        direction LR
+        Auth[AuthModule] --> Users[UsersModule]
+        Menu[MenuModule]
+        Orders[OrdersModule]
+        Payments[PaymentsModule]
+        Kitchen[KitchenModule]
+        Scheduler["SchedulerModule<br/>in-memory ovens + queue"]
+    end
+
+    JwtG --> Auth & Menu & Orders & Payments & Kitchen
+    Orders -->|enqueue jobs| Scheduler
+    Kitchen -->|monitor / advance-time| Scheduler
+
+    Features --> Prisma[("PrismaService<br/>PrismaPg adapter")]
+    Scheduler -.-> Time["TimeProvider"]
+    Orders & Scheduler -.-> Metrics["Prometheus /metrics"]
+```
+
+> 📐 Full module-dependency and order-lifecycle diagrams: **[docs/architecture.md](docs/architecture.md)**
 
 ### Modules
 
