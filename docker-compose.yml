@@ -9,6 +9,7 @@ services:
       DATABASE_URL: postgresql://snack:snack@postgres:5432/snack_builders?schema=public
       PORT: "3000"
       NODE_ENV: production
+      JWT_SECRET: change-me-in-production
     depends_on:
       postgres:
         condition: service_healthy
